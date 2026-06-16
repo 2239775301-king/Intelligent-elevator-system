@@ -39,7 +39,11 @@ void Slave_Init(slave_elevator_t* elevator, uint8_t node_id, uint8_t initial_flo
     elevator->door_open_ms = 0U;
 }
 
-void Slave_ProcessAssignCommand(slave_elevator_t* elevator, uint8_t target_floor, direction_t direction) {
+void Slave_ProcessAssignCommand(
+    slave_elevator_t* elevator,
+    uint8_t target_floor,
+    direction_t direction,
+    uint32_t now_ms) {
     (void)direction;
 
     if (elevator == NULL || elevator->mode == ELEVATOR_MODE_FAULT) {
@@ -57,6 +61,7 @@ void Slave_ProcessAssignCommand(slave_elevator_t* elevator, uint8_t target_floor
 
     elevator->door = DOOR_CLOSED;
     elevator->mode = ELEVATOR_MODE_MOVING;
+    elevator->last_motion_ms = now_ms;
 }
 
 void Slave_SetFault(slave_elevator_t* elevator, uint8_t fault_code) {

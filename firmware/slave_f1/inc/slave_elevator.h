@@ -20,7 +20,11 @@ typedef struct {
 } slave_elevator_t;
 
 void Slave_Init(slave_elevator_t* elevator, uint8_t node_id, uint8_t initial_floor);
-void Slave_ProcessAssignCommand(slave_elevator_t* elevator, uint8_t target_floor, direction_t direction);
+void Slave_ProcessAssignCommand(
+    slave_elevator_t* elevator,
+    uint8_t target_floor,
+    direction_t direction,
+    uint32_t now_ms);
 void Slave_SetFault(slave_elevator_t* elevator, uint8_t fault_code);
 void Slave_ClearFault(slave_elevator_t* elevator);
 void Slave_Tick(slave_elevator_t* elevator, uint32_t now_ms);

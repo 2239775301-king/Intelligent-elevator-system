@@ -58,9 +58,11 @@ static uint8_t select_best_node(const master_controller_t* controller, hall_call
         uint8_t distance = (n->status.floor > call.floor)
             ? (uint8_t)(n->status.floor - call.floor)
             : (uint8_t)(call.floor - n->status.floor);
-        /* Prefer cars already moving toward the request by adding a small cost to opposite motion. */
+        /* Prefer cars already moving toward the request by adding a small cost to cars moving away. */
         uint8_t penalty = 0U;
-        if (n->status.mode == ELEVATOR_MODE_MOVING && n->status.motion != call.direction) {
+        bool moving_away = (n->status.motion == DIRECTION_UP && n->status.floor > call.floor)
+            || (n->status.motion == DIRECTION_DOWN && n->status.floor < call.floor);
+        if (n->status.mode == ELEVATOR_MODE_MOVING && moving_away) {
             penalty = DIRECTION_MISMATCH_PENALTY;
         }
 
