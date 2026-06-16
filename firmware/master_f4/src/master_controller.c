@@ -1,5 +1,7 @@
 #include "../inc/master_controller.h"
 
+#define DIRECTION_MISMATCH_PENALTY 2U
+
 static uint8_t clamp_floor(uint8_t floor) {
     return (floor > ELEVATOR_MAX_FLOOR) ? ELEVATOR_MAX_FLOOR : floor;
 }
@@ -52,9 +54,10 @@ static uint8_t select_best_node(const master_controller_t* controller, hall_call
         uint8_t distance = (n->status.floor > call.floor)
             ? (uint8_t)(n->status.floor - call.floor)
             : (uint8_t)(call.floor - n->status.floor);
+        /* Prefer cars already moving toward the request by adding a small cost to opposite motion. */
         uint8_t penalty = 0U;
         if (n->status.mode == ELEVATOR_MODE_MOVING && n->status.motion != call.direction) {
-            penalty = 2U;
+            penalty = DIRECTION_MISMATCH_PENALTY;
         }
 
         uint8_t cost = (uint8_t)(distance + penalty);
@@ -139,7 +142,7 @@ size_t Master_Tick(
         if (n->online && (now_ms - n->last_heartbeat_ms) > controller->heartbeat_timeout_ms) {
             n->online = false;
             n->status.mode = ELEVATOR_MODE_FAULT;
-            n->status.fault_code = 0xEEU;
+            n->status.fault_code = FAULT_CODE_HEARTBEAT_TIMEOUT;
         }
     }
 

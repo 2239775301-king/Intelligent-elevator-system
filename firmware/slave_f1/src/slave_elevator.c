@@ -1,6 +1,8 @@
 #include "../inc/slave_elevator.h"
 
+/* Simulated travel time for moving one floor. */
 #define FLOOR_TRAVEL_MS 1000U
+/* Simulated time that doors remain open after arrival. */
 #define DOOR_HOLD_MS    2000U
 
 static uint8_t clamp_floor(uint8_t floor) {
