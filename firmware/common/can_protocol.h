@@ -13,6 +13,7 @@
 #define CAN_ID_HALL_CALL      0x400U
 
 #define COMMAND_CODE_ASSIGN_TARGET 0x01U
+/* 0xEE marks master-detected heartbeat timeout and keeps value distinct from low fault IDs. */
 #define FAULT_CODE_HEARTBEAT_TIMEOUT 0xEEU
 
 typedef enum {

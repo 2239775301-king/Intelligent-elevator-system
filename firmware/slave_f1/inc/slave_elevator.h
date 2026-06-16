@@ -20,6 +20,7 @@ typedef struct {
 } slave_elevator_t;
 
 void Slave_Init(slave_elevator_t* elevator, uint8_t node_id, uint8_t initial_floor);
+/* direction is reserved for future dispatch strategy constraints. */
 void Slave_ProcessAssignCommand(
     slave_elevator_t* elevator,
     uint8_t target_floor,

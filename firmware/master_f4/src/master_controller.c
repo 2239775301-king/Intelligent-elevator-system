@@ -48,7 +48,7 @@ static void clear_call(master_controller_t* controller, hall_call_t call) {
 
 static uint8_t select_best_node(const master_controller_t* controller, hall_call_t call) {
     uint8_t best_node = 0U;
-    uint8_t best_cost = 0xFFU;
+    uint8_t best_cost = UINT8_MAX;
 
     for (uint8_t node = 1U; node <= ELEVATOR_MAX_NODES; ++node) {
         const master_node_state_t* n = &controller->nodes[node];
