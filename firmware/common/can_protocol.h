@@ -108,13 +108,13 @@ static inline can_frame_type_t can_frame_type_from_id(uint16_t id) {
     if (id == CAN_ID_HALL_CALL) {
         return CAN_FRAME_HALL_CALL;
     }
-    if (id > CAN_ID_HEARTBEAT_BASE && id <= CAN_ID_HEARTBEAT_BASE + ELEVATOR_MAX_NODES) {
+    if (id >= CAN_ID_HEARTBEAT_BASE && id <= CAN_ID_HEARTBEAT_BASE + ELEVATOR_MAX_NODES) {
         return CAN_FRAME_HEARTBEAT;
     }
-    if (id > CAN_ID_STATUS_BASE && id <= CAN_ID_STATUS_BASE + ELEVATOR_MAX_NODES) {
+    if (id >= CAN_ID_STATUS_BASE && id <= CAN_ID_STATUS_BASE + ELEVATOR_MAX_NODES) {
         return CAN_FRAME_STATUS;
     }
-    if (id > CAN_ID_COMMAND_BASE && id <= CAN_ID_COMMAND_BASE + ELEVATOR_MAX_NODES) {
+    if (id >= CAN_ID_COMMAND_BASE && id <= CAN_ID_COMMAND_BASE + ELEVATOR_MAX_NODES) {
         return CAN_FRAME_COMMAND;
     }
     return CAN_FRAME_UNKNOWN;

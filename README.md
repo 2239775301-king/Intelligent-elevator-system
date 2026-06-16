@@ -101,7 +101,7 @@ firmware/
 ## 复现实验结果（本仓库）
 
 ```bash
-cd /home/runner/work/Intelligent-elevator-system/Intelligent-elevator-system/2239775301-king/Intelligent-elevator-system
+cd <repo-root>
 
 # 1) 语法检查（主从控制模块）
 gcc -std=c11 -Wall -Wextra -Werror \

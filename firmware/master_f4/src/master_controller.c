@@ -8,12 +8,16 @@ static uint32_t elapsed_ms(uint32_t now_ms, uint32_t previous_ms) {
 }
 
 static uint32_t popcount32(uint32_t value) {
+#if defined(__GNUC__) || defined(__clang__)
+    return (uint32_t)__builtin_popcount(value);
+#else
     uint32_t count = 0U;
     while (value != 0U) {
         value &= (value - 1U);
         count++;
     }
     return count;
+#endif
 }
 
 static uint8_t clamp_floor(uint8_t floor) {
@@ -47,7 +51,10 @@ static bool get_next_call(const master_controller_t* controller, hall_call_t* ou
 }
 
 static bool get_next_call_after(const master_controller_t* controller, hall_call_t* in_out_call) {
-    uint8_t start = clamp_floor((uint8_t)(in_out_call->floor + 1U));
+    if (in_out_call->floor >= ELEVATOR_MAX_FLOOR) {
+        return false;
+    }
+    uint8_t start = (uint8_t)(in_out_call->floor + 1U);
     for (uint8_t f = start; f <= ELEVATOR_MAX_FLOOR; ++f) {
         uint32_t mask = (1UL << f);
         if ((controller->pending_up_mask & mask) != 0U) {
@@ -228,7 +235,7 @@ size_t Master_Tick(
 
     for (uint8_t node = 1U; node <= ELEVATOR_MAX_NODES; ++node) {
         master_node_state_t* n = &controller->nodes[node];
-        if (n->online && elapsed_ms(now_ms, n->last_heartbeat_ms) > controller->heartbeat_timeout_ms) {
+        if (n->online && elapsed_ms(now_ms, n->last_heartbeat_ms) >= controller->heartbeat_timeout_ms) {
             n->online = false;
             n->status.mode = ELEVATOR_MODE_FAULT;
             n->status.fault_code = FAULT_CODE_HEARTBEAT_TIMEOUT;

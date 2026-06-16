@@ -48,12 +48,15 @@ void Slave_ProcessAssignCommand(
     /* Direction is reserved for future strategy expansion (e.g., directional hall-call constraints). */
     (void)direction;
 
-    if (elevator == NULL || elevator->mode == ELEVATOR_MODE_FAULT) {
+    if (elevator == NULL) {
         return;
     }
     if (!is_valid_floor(target_floor)) {
         Slave_SetFault(elevator, FAULT_CODE_FLOOR_LIMIT);
         elevator->fault_since_ms = now_ms;
+        return;
+    }
+    if (elevator->mode == ELEVATOR_MODE_FAULT) {
         return;
     }
 

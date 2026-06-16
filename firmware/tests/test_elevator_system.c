@@ -31,6 +31,7 @@ static void test_master_multi_dispatch(void) {
 static void test_master_timeout_isolation(void) {
     master_controller_t master;
     Master_Init(&master, 500U);
+    assert(is_valid_node(1U));
     Master_OnHeartbeat(&master, 1U, 0U);
 
     hall_call_t call = {5U, DIRECTION_UP};
