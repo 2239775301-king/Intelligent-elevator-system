@@ -6,7 +6,7 @@
 #define DOOR_HOLD_MS    2000U
 
 static uint32_t elapsed_ms(uint32_t now_ms, uint32_t previous_ms) {
-    return now_ms - previous_ms;
+    return (uint32_t)(now_ms - previous_ms);
 }
 
 static uint8_t clamp_floor(uint8_t floor) {
@@ -57,6 +57,7 @@ void Slave_ProcessAssignCommand(
     if (elevator->motion == DIRECTION_IDLE) {
         elevator->door = DOOR_OPENED;
         elevator->mode = ELEVATOR_MODE_DOOR_OPEN;
+        elevator->door_open_ms = now_ms;
         return;
     }
 
