@@ -5,6 +5,10 @@
 /* Simulated time that doors remain open after arrival. */
 #define DOOR_HOLD_MS    2000U
 
+static uint32_t elapsed_ms(uint32_t now_ms, uint32_t previous_ms) {
+    return now_ms - previous_ms;
+}
+
 static uint8_t clamp_floor(uint8_t floor) {
     return (floor > ELEVATOR_MAX_FLOOR) ? ELEVATOR_MAX_FLOOR : floor;
 }
@@ -20,7 +24,7 @@ static void update_motion_direction(slave_elevator_t* elevator) {
 }
 
 void Slave_Init(slave_elevator_t* elevator, uint8_t node_id, uint8_t initial_floor) {
-    if (elevator == 0) {
+    if (elevator == NULL) {
         return;
     }
 
@@ -38,7 +42,7 @@ void Slave_Init(slave_elevator_t* elevator, uint8_t node_id, uint8_t initial_flo
 void Slave_ProcessAssignCommand(slave_elevator_t* elevator, uint8_t target_floor, direction_t direction) {
     (void)direction;
 
-    if (elevator == 0 || elevator->mode == ELEVATOR_MODE_FAULT) {
+    if (elevator == NULL || elevator->mode == ELEVATOR_MODE_FAULT) {
         return;
     }
 
@@ -56,7 +60,7 @@ void Slave_ProcessAssignCommand(slave_elevator_t* elevator, uint8_t target_floor
 }
 
 void Slave_SetFault(slave_elevator_t* elevator, uint8_t fault_code) {
-    if (elevator == 0) {
+    if (elevator == NULL) {
         return;
     }
 
@@ -67,7 +71,7 @@ void Slave_SetFault(slave_elevator_t* elevator, uint8_t fault_code) {
 }
 
 void Slave_ClearFault(slave_elevator_t* elevator) {
-    if (elevator == 0 || elevator->mode != ELEVATOR_MODE_FAULT) {
+    if (elevator == NULL || elevator->mode != ELEVATOR_MODE_FAULT) {
         return;
     }
 
@@ -76,12 +80,12 @@ void Slave_ClearFault(slave_elevator_t* elevator) {
 }
 
 void Slave_Tick(slave_elevator_t* elevator, uint32_t now_ms) {
-    if (elevator == 0 || elevator->mode == ELEVATOR_MODE_FAULT) {
+    if (elevator == NULL || elevator->mode == ELEVATOR_MODE_FAULT) {
         return;
     }
 
     if (elevator->mode == ELEVATOR_MODE_MOVING) {
-        if ((now_ms - elevator->last_motion_ms) < FLOOR_TRAVEL_MS) {
+        if (elapsed_ms(now_ms, elevator->last_motion_ms) < FLOOR_TRAVEL_MS) {
             return;
         }
         elevator->last_motion_ms = now_ms;
@@ -102,7 +106,7 @@ void Slave_Tick(slave_elevator_t* elevator, uint32_t now_ms) {
     }
 
     if (elevator->mode == ELEVATOR_MODE_DOOR_OPEN) {
-        if ((now_ms - elevator->door_open_ms) >= DOOR_HOLD_MS) {
+        if (elapsed_ms(now_ms, elevator->door_open_ms) >= DOOR_HOLD_MS) {
             elevator->door = DOOR_CLOSED;
             elevator->mode = ELEVATOR_MODE_IDLE;
         }
@@ -110,7 +114,7 @@ void Slave_Tick(slave_elevator_t* elevator, uint32_t now_ms) {
 }
 
 void Slave_BuildStatusFrame(const slave_elevator_t* elevator, can_tx_frame_t* out_frame) {
-    if (elevator == 0 || out_frame == 0) {
+    if (elevator == NULL || out_frame == NULL) {
         return;
     }
 
@@ -127,7 +131,7 @@ void Slave_BuildStatusFrame(const slave_elevator_t* elevator, can_tx_frame_t* ou
 }
 
 void Slave_BuildHeartbeatFrame(const slave_elevator_t* elevator, can_tx_frame_t* out_frame) {
-    if (elevator == 0 || out_frame == 0) {
+    if (elevator == NULL || out_frame == NULL) {
         return;
     }
 

@@ -2,6 +2,10 @@
 
 #define DIRECTION_MISMATCH_PENALTY 2U
 
+static uint32_t elapsed_ms(uint32_t now_ms, uint32_t previous_ms) {
+    return now_ms - previous_ms;
+}
+
 static uint8_t clamp_floor(uint8_t floor) {
     return (floor > ELEVATOR_MAX_FLOOR) ? ELEVATOR_MAX_FLOOR : floor;
 }
@@ -81,7 +85,7 @@ static can_tx_frame_t build_assign_frame(uint8_t node, hall_call_t call) {
 }
 
 void Master_Init(master_controller_t* controller, uint32_t heartbeat_timeout_ms) {
-    if (controller == 0) {
+    if (controller == NULL) {
         return;
     }
 
@@ -102,7 +106,7 @@ void Master_Init(master_controller_t* controller, uint32_t heartbeat_timeout_ms)
 }
 
 void Master_OnHeartbeat(master_controller_t* controller, uint8_t node_id, uint32_t now_ms) {
-    if (controller == 0 || !is_valid_node(node_id)) {
+    if (controller == NULL || !is_valid_node(node_id)) {
         return;
     }
 
@@ -111,7 +115,7 @@ void Master_OnHeartbeat(master_controller_t* controller, uint8_t node_id, uint32
 }
 
 void Master_OnStatus(master_controller_t* controller, const elevator_status_t* status, uint32_t now_ms) {
-    if (controller == 0 || status == 0 || !is_valid_node(status->node_id)) {
+    if (controller == NULL || status == NULL || !is_valid_node(status->node_id)) {
         return;
     }
 
@@ -122,7 +126,7 @@ void Master_OnStatus(master_controller_t* controller, const elevator_status_t* s
 }
 
 void Master_OnHallCall(master_controller_t* controller, const hall_call_t* call) {
-    if (controller == 0 || call == 0) {
+    if (controller == NULL || call == NULL) {
         return;
     }
     set_hall_call(controller, *call);
@@ -133,13 +137,13 @@ size_t Master_Tick(
     uint32_t now_ms,
     can_tx_frame_t* out_frames,
     size_t out_capacity) {
-    if (controller == 0 || out_frames == 0 || out_capacity == 0U) {
+    if (controller == NULL || out_frames == NULL || out_capacity == 0U) {
         return 0U;
     }
 
     for (uint8_t node = 1U; node <= ELEVATOR_MAX_NODES; ++node) {
         master_node_state_t* n = &controller->nodes[node];
-        if (n->online && (now_ms - n->last_heartbeat_ms) > controller->heartbeat_timeout_ms) {
+        if (n->online && elapsed_ms(now_ms, n->last_heartbeat_ms) > controller->heartbeat_timeout_ms) {
             n->online = false;
             n->status.mode = ELEVATOR_MODE_FAULT;
             n->status.fault_code = FAULT_CODE_HEARTBEAT_TIMEOUT;
