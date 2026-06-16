@@ -17,12 +17,19 @@ typedef struct {
     uint8_t fault_code;
     uint32_t last_motion_ms;
     uint32_t door_open_ms;
+    uint32_t fault_since_ms;
 } slave_elevator_t;
 
 void Slave_Init(slave_elevator_t* elevator, uint8_t node_id, uint8_t initial_floor);
 /* direction is reserved for future dispatch strategy constraints. */
 void Slave_ProcessAssignCommand(
     slave_elevator_t* elevator,
+    uint8_t target_floor,
+    direction_t direction,
+    uint32_t now_ms);
+void Slave_ProcessCommand(
+    slave_elevator_t* elevator,
+    uint8_t command_code,
     uint8_t target_floor,
     direction_t direction,
     uint32_t now_ms);

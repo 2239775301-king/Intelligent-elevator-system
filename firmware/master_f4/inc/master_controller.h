@@ -18,7 +18,16 @@ typedef struct {
     uint32_t pending_up_mask;
     uint32_t pending_down_mask;
     uint32_t heartbeat_timeout_ms;
+    uint32_t total_dispatch_count;
 } master_controller_t;
+
+typedef struct {
+    uint32_t pending_call_count;
+    uint32_t online_node_count;
+    uint32_t timeout_isolation_count;
+    uint32_t total_dispatch_count;
+    bool has_schedulable_node;
+} master_observer_t;
 
 void Master_Init(master_controller_t* controller, uint32_t heartbeat_timeout_ms);
 void Master_OnHeartbeat(master_controller_t* controller, uint8_t node_id, uint32_t now_ms);
@@ -30,5 +39,7 @@ size_t Master_Tick(
     uint32_t now_ms,
     can_tx_frame_t* out_frames,
     size_t out_capacity);
+
+void Master_GetObserver(const master_controller_t* controller, master_observer_t* out_observer);
 
 #endif

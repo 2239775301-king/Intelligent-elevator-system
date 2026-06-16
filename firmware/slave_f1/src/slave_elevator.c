@@ -37,6 +37,7 @@ void Slave_Init(slave_elevator_t* elevator, uint8_t node_id, uint8_t initial_flo
     elevator->fault_code = 0U;
     elevator->last_motion_ms = 0U;
     elevator->door_open_ms = 0U;
+    elevator->fault_since_ms = 0U;
 }
 
 void Slave_ProcessAssignCommand(
@@ -50,8 +51,13 @@ void Slave_ProcessAssignCommand(
     if (elevator == NULL || elevator->mode == ELEVATOR_MODE_FAULT) {
         return;
     }
+    if (!is_valid_floor(target_floor)) {
+        Slave_SetFault(elevator, FAULT_CODE_FLOOR_LIMIT);
+        elevator->fault_since_ms = now_ms;
+        return;
+    }
 
-    elevator->target_floor = clamp_floor(target_floor);
+    elevator->target_floor = target_floor;
     update_motion_direction(elevator);
 
     if (elevator->motion == DIRECTION_IDLE) {
@@ -64,6 +70,30 @@ void Slave_ProcessAssignCommand(
     elevator->door = DOOR_CLOSED;
     elevator->mode = ELEVATOR_MODE_MOVING;
     elevator->last_motion_ms = now_ms;
+}
+
+void Slave_ProcessCommand(
+    slave_elevator_t* elevator,
+    uint8_t command_code,
+    uint8_t target_floor,
+    direction_t direction,
+    uint32_t now_ms) {
+    if (elevator == NULL) {
+        return;
+    }
+
+    if (command_code == COMMAND_CODE_ASSIGN_TARGET) {
+        Slave_ProcessAssignCommand(elevator, target_floor, direction, now_ms);
+        return;
+    }
+
+    if (command_code == COMMAND_CODE_CLEAR_FAULT) {
+        Slave_ClearFault(elevator);
+        return;
+    }
+
+    Slave_SetFault(elevator, FAULT_CODE_INVALID_COMMAND);
+    elevator->fault_since_ms = now_ms;
 }
 
 void Slave_SetFault(slave_elevator_t* elevator, uint8_t fault_code) {
@@ -84,6 +114,10 @@ void Slave_ClearFault(slave_elevator_t* elevator) {
 
     elevator->fault_code = 0U;
     elevator->mode = ELEVATOR_MODE_IDLE;
+    elevator->target_floor = elevator->current_floor;
+    elevator->motion = DIRECTION_IDLE;
+    elevator->door = DOOR_CLOSED;
+    elevator->fault_since_ms = 0U;
 }
 
 void Slave_Tick(slave_elevator_t* elevator, uint32_t now_ms) {

@@ -7,6 +7,15 @@ static uint32_t elapsed_ms(uint32_t now_ms, uint32_t previous_ms) {
     return (uint32_t)(now_ms - previous_ms);
 }
 
+static uint32_t popcount32(uint32_t value) {
+    uint32_t count = 0U;
+    while (value != 0U) {
+        value &= (value - 1U);
+        count++;
+    }
+    return count;
+}
+
 static uint8_t clamp_floor(uint8_t floor) {
     return (floor > ELEVATOR_MAX_FLOOR) ? ELEVATOR_MAX_FLOOR : floor;
 }
@@ -37,6 +46,24 @@ static bool get_next_call(const master_controller_t* controller, hall_call_t* ou
     return false;
 }
 
+static bool get_next_call_after(const master_controller_t* controller, hall_call_t* in_out_call) {
+    uint8_t start = clamp_floor((uint8_t)(in_out_call->floor + 1U));
+    for (uint8_t f = start; f <= ELEVATOR_MAX_FLOOR; ++f) {
+        uint32_t mask = (1UL << f);
+        if ((controller->pending_up_mask & mask) != 0U) {
+            in_out_call->floor = f;
+            in_out_call->direction = DIRECTION_UP;
+            return true;
+        }
+        if ((controller->pending_down_mask & mask) != 0U) {
+            in_out_call->floor = f;
+            in_out_call->direction = DIRECTION_DOWN;
+            return true;
+        }
+    }
+    return false;
+}
+
 static void clear_call(master_controller_t* controller, hall_call_t call) {
     uint32_t mask = ~(1UL << clamp_floor(call.floor));
     if (call.direction == DIRECTION_DOWN) {
@@ -44,6 +71,17 @@ static void clear_call(master_controller_t* controller, hall_call_t call) {
         return;
     }
     controller->pending_up_mask &= mask;
+}
+
+static void clear_call_for_arrived_car(master_controller_t* controller, const elevator_status_t* status) {
+    if (status->mode != ELEVATOR_MODE_DOOR_OPEN || status->door != DOOR_OPENED) {
+        return;
+    }
+
+    hall_call_t up_call = {status->floor, DIRECTION_UP};
+    hall_call_t down_call = {status->floor, DIRECTION_DOWN};
+    clear_call(controller, up_call);
+    clear_call(controller, down_call);
 }
 
 static uint8_t select_best_node(const master_controller_t* controller, hall_call_t call) {
@@ -106,6 +144,7 @@ void Master_Init(master_controller_t* controller, uint32_t heartbeat_timeout_ms)
     controller->pending_up_mask = 0U;
     controller->pending_down_mask = 0U;
     controller->heartbeat_timeout_ms = heartbeat_timeout_ms;
+    controller->total_dispatch_count = 0U;
 }
 
 void Master_OnHeartbeat(master_controller_t* controller, uint8_t node_id, uint32_t now_ms) {
@@ -113,12 +152,24 @@ void Master_OnHeartbeat(master_controller_t* controller, uint8_t node_id, uint32
         return;
     }
 
-    controller->nodes[node_id].online = true;
-    controller->nodes[node_id].last_heartbeat_ms = now_ms;
+    master_node_state_t* node = &controller->nodes[node_id];
+    node->online = true;
+    node->last_heartbeat_ms = now_ms;
+    if (node->status.mode == ELEVATOR_MODE_FAULT
+        && node->status.fault_code == FAULT_CODE_HEARTBEAT_TIMEOUT) {
+        node->status.mode = ELEVATOR_MODE_IDLE;
+        node->status.motion = DIRECTION_IDLE;
+        node->status.door = DOOR_CLOSED;
+        node->status.fault_code = 0U;
+    }
 }
 
 void Master_OnStatus(master_controller_t* controller, const elevator_status_t* status, uint32_t now_ms) {
-    if (controller == NULL || status == NULL || !is_valid_node(status->node_id)) {
+    if (controller == NULL || status == NULL || !is_valid_node(status->node_id)
+        || !is_valid_floor(status->floor)
+        || !is_valid_direction(status->motion)
+        || !is_valid_mode(status->mode)
+        || !is_valid_door(status->door)) {
         return;
     }
 
@@ -126,13 +177,44 @@ void Master_OnStatus(master_controller_t* controller, const elevator_status_t* s
     node->status = *status;
     node->online = true;
     node->last_heartbeat_ms = now_ms;
+    clear_call_for_arrived_car(controller, status);
 }
 
 void Master_OnHallCall(master_controller_t* controller, const hall_call_t* call) {
-    if (controller == NULL || call == NULL) {
+    if (controller == NULL || call == NULL || !is_valid_floor(call->floor)) {
         return;
     }
-    set_hall_call(controller, *call);
+
+    hall_call_t normalized = *call;
+    if (normalized.direction != DIRECTION_DOWN) {
+        normalized.direction = DIRECTION_UP;
+    }
+    set_hall_call(controller, normalized);
+}
+
+static size_t dispatch_pending_calls(
+    master_controller_t* controller,
+    can_tx_frame_t* out_frames,
+    size_t out_capacity) {
+    hall_call_t call = {0};
+    if (!get_next_call(controller, &call)) {
+        return 0U;
+    }
+
+    size_t out_count = 0U;
+    do {
+        if (out_count >= out_capacity) {
+            break;
+        }
+        uint8_t node = select_best_node(controller, call);
+        if (node != 0U) {
+            out_frames[out_count++] = build_assign_frame(node, call);
+            clear_call(controller, call);
+            controller->total_dispatch_count++;
+        }
+    } while (get_next_call_after(controller, &call));
+
+    return out_count;
 }
 
 size_t Master_Tick(
@@ -153,17 +235,31 @@ size_t Master_Tick(
         }
     }
 
-    hall_call_t call = {0};
-    if (!get_next_call(controller, &call)) {
-        return 0U;
+    return dispatch_pending_calls(controller, out_frames, out_capacity);
+}
+
+void Master_GetObserver(const master_controller_t* controller, master_observer_t* out_observer) {
+    if (controller == NULL || out_observer == NULL) {
+        return;
     }
 
-    uint8_t node = select_best_node(controller, call);
-    if (node == 0U) {
-        return 0U;
-    }
+    out_observer->pending_call_count = popcount32(controller->pending_up_mask)
+        + popcount32(controller->pending_down_mask);
+    out_observer->online_node_count = 0U;
+    out_observer->timeout_isolation_count = 0U;
+    out_observer->total_dispatch_count = controller->total_dispatch_count;
+    out_observer->has_schedulable_node = false;
 
-    out_frames[0] = build_assign_frame(node, call);
-    clear_call(controller, call);
-    return 1U;
+    for (uint8_t node = 1U; node <= ELEVATOR_MAX_NODES; ++node) {
+        const master_node_state_t* n = &controller->nodes[node];
+        if (n->online) {
+            out_observer->online_node_count++;
+        }
+        if (n->status.fault_code == FAULT_CODE_HEARTBEAT_TIMEOUT) {
+            out_observer->timeout_isolation_count++;
+        }
+        if (n->online && n->status.mode != ELEVATOR_MODE_FAULT) {
+            out_observer->has_schedulable_node = true;
+        }
+    }
 }

@@ -13,8 +13,15 @@
 #define CAN_ID_HALL_CALL      0x400U
 
 #define COMMAND_CODE_ASSIGN_TARGET 0x01U
+#define COMMAND_CODE_CLEAR_FAULT   0x02U
 /* 0xEE marks master-detected heartbeat timeout and keeps value distinct from low fault IDs. */
 #define FAULT_CODE_HEARTBEAT_TIMEOUT 0xEEU
+#define FAULT_CODE_INVALID_COMMAND   0xE1U
+#define FAULT_CODE_FLOOR_LIMIT       0xE2U
+
+#define HEARTBEAT_PERIOD_MS_DEFAULT 100U
+#define STATUS_PERIOD_MS_DEFAULT    100U
+#define MASTER_TICK_MS_DEFAULT       50U
 
 typedef enum {
     DIRECTION_IDLE = 0U,
@@ -54,8 +61,35 @@ typedef struct {
     direction_t direction;
 } hall_call_t;
 
+typedef enum {
+    CAN_FRAME_UNKNOWN = 0U,
+    CAN_FRAME_HEARTBEAT = 1U,
+    CAN_FRAME_STATUS = 2U,
+    CAN_FRAME_COMMAND = 3U,
+    CAN_FRAME_HALL_CALL = 4U
+} can_frame_type_t;
+
 static inline bool is_valid_node(uint8_t node_id) {
     return node_id >= 1U && node_id <= ELEVATOR_MAX_NODES;
+}
+
+static inline bool is_valid_floor(uint8_t floor) {
+    return floor <= ELEVATOR_MAX_FLOOR;
+}
+
+static inline bool is_valid_direction(direction_t direction) {
+    return direction == DIRECTION_IDLE || direction == DIRECTION_UP || direction == DIRECTION_DOWN;
+}
+
+static inline bool is_valid_mode(elevator_mode_t mode) {
+    return mode == ELEVATOR_MODE_IDLE
+        || mode == ELEVATOR_MODE_MOVING
+        || mode == ELEVATOR_MODE_DOOR_OPEN
+        || mode == ELEVATOR_MODE_FAULT;
+}
+
+static inline bool is_valid_door(door_state_t door) {
+    return door == DOOR_CLOSED || door == DOOR_OPENED;
 }
 
 static inline uint16_t can_id_heartbeat(uint8_t node_id) {
@@ -68,6 +102,22 @@ static inline uint16_t can_id_status(uint8_t node_id) {
 
 static inline uint16_t can_id_command(uint8_t node_id) {
     return (uint16_t)(CAN_ID_COMMAND_BASE + node_id);
+}
+
+static inline can_frame_type_t can_frame_type_from_id(uint16_t id) {
+    if (id == CAN_ID_HALL_CALL) {
+        return CAN_FRAME_HALL_CALL;
+    }
+    if (id > CAN_ID_HEARTBEAT_BASE && id <= CAN_ID_HEARTBEAT_BASE + ELEVATOR_MAX_NODES) {
+        return CAN_FRAME_HEARTBEAT;
+    }
+    if (id > CAN_ID_STATUS_BASE && id <= CAN_ID_STATUS_BASE + ELEVATOR_MAX_NODES) {
+        return CAN_FRAME_STATUS;
+    }
+    if (id > CAN_ID_COMMAND_BASE && id <= CAN_ID_COMMAND_BASE + ELEVATOR_MAX_NODES) {
+        return CAN_FRAME_COMMAND;
+    }
+    return CAN_FRAME_UNKNOWN;
 }
 
 #endif

@@ -4,6 +4,7 @@
 - `STM32F4` 主控（调度与策略）
 - `STM32F1` 从控（单台电梯状态机）
 - `CAN 2.0A` 协议（心跳、状态上报、调度指令）
+- `仿真测试`（多梯调度、心跳超时隔离、单梯状态机、故障恢复）
 
 > 当前仓库提供可直接迁移到 HAL 工程的核心逻辑与协议定义，便于后续接入真实硬件外设驱动。
 
@@ -19,6 +20,8 @@ firmware/
   slave_f1/
     inc/slave_elevator.h           # 从控状态机接口
     src/slave_elevator.c           # 运行/开关门/故障状态机实现
+  tests/
+    test_elevator_system.c         # 端到端仿真测试（gcc 可直接运行）
 ```
 
 ## 模块划分
@@ -45,8 +48,13 @@ firmware/
 |---|---:|---|---|
 | 心跳 | `0x100 + node` | 从控 -> 主控 | `B0=node, B1=mode, B2=door, B3=fault, B4..B7=0` |
 | 状态上报 | `0x200 + node` | 从控 -> 主控 | `B0=node, B1=floor, B2=motion, B3=mode, B4=door, B5=fault, B6..B7=0` |
-| 派梯指令 | `0x300 + node` | 主控 -> 从控 | `B0=target_floor, B1=direction, B2=cmd, B3..B7=0` |
+| 派梯指令 | `0x300 + node` | 主控 -> 从控 | `B0=target_floor, B1=direction, B2=cmd, B3..B7=0` (`cmd=0x01` 派梯, `cmd=0x02` 清故障) |
 | 厅外呼梯（可选） | `0x400` | 面板/网关 -> 主控 | `B0=floor, B1=direction, B2..B7=0` |
+
+### 错误码规范（节选）
+- `0xEE`：主控检测心跳超时并隔离节点
+- `0xE1`：从控收到非法命令码
+- `0xE2`：从控收到非法楼层参数
 
 ## 最小可运行里程碑
 
@@ -73,3 +81,36 @@ firmware/
 2. 将 `firmware/common` 与对应控制器源码拷入工程
 3. 在 `HAL_CAN_RxFifo0MsgPendingCallback` 中解析 CAN 帧并调用接口
 4. 在定时器中断或主循环中周期调用 `Master_Tick/Slave_Tick`
+5. 使用统一 `now_ms`（如 SysTick 累加）作为主从 Tick 时间基准
+
+## 当前已实现闭环能力
+
+### 主控（F4）
+- 呼梯请求按楼层位图管理，支持一次 Tick 内多请求派发（输出受 `out_capacity` 限制）
+- 选梯策略：距离优先 + 反向运行惩罚，避免逆向车抢单
+- 心跳超时自动隔离，故障梯不参与派单
+- 电梯到站开门时自动清理该楼层上下行呼梯残留
+- 提供 `Master_GetObserver` 输出可观测指标（在线梯数、待处理请求数、超时隔离数、累计派单数）
+
+### 从控（F1）
+- 单梯状态机：`IDLE -> MOVING -> DOOR_OPEN -> IDLE`
+- 指令闭环：`ASSIGN_TARGET(0x01)` 接单执行；`CLEAR_FAULT(0x02)` 故障恢复
+- 非法命令与非法楼层参数进入故障态并上报对应故障码
+- 状态上报与心跳均反映当前模式/门状态/故障码
+
+## 复现实验结果（本仓库）
+
+```bash
+cd /home/runner/work/Intelligent-elevator-system/Intelligent-elevator-system/2239775301-king/Intelligent-elevator-system
+
+# 1) 语法检查（主从控制模块）
+gcc -std=c11 -Wall -Wextra -Werror \
+  -Ifirmware/common -Ifirmware/master_f4/inc -Ifirmware/slave_f1/inc \
+  -fsyntax-only firmware/master_f4/src/master_controller.c firmware/slave_f1/src/slave_elevator.c
+
+# 2) 仿真测试（调度 + 状态机 + 容错）
+gcc -std=c11 -Wall -Wextra -Werror \
+  -Ifirmware/common -Ifirmware/master_f4/inc -Ifirmware/slave_f1/inc \
+  firmware/master_f4/src/master_controller.c firmware/slave_f1/src/slave_elevator.c \
+  firmware/tests/test_elevator_system.c -o /tmp/elevator_tests && /tmp/elevator_tests
+```
