@@ -1,5 +1,6 @@
 #include "../inc/master_controller.h"
 
+/* +2 cost makes moving-away cars less preferred without starving distant idle cars. */
 #define DIRECTION_MISMATCH_PENALTY 2U
 
 static uint32_t elapsed_ms(uint32_t now_ms, uint32_t previous_ms) {

@@ -44,6 +44,7 @@ void Slave_ProcessAssignCommand(
     uint8_t target_floor,
     direction_t direction,
     uint32_t now_ms) {
+    /* Direction is reserved for future strategy expansion (e.g., directional hall-call constraints). */
     (void)direction;
 
     if (elevator == NULL || elevator->mode == ELEVATOR_MODE_FAULT) {
